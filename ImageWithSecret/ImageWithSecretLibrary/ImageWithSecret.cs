@@ -21,11 +21,13 @@ namespace ImageWithSecretLibrary
         public List<ICompression> Compressions = new List<ICompression>();
         public ICompression DataCompression { set; get; }
         private ByteOperations _byteOperations = new ByteOperations();
-        private LockBitmap _lockBitmap;
+        // private LockBitmap _lockBitmap;
         private readonly int WriteReadDataIdPosition = 8;
         private readonly int DataCompressionIdPosition = 9;
         private readonly int Encrypt1IdPosition = 10;
         private readonly int Encrypt2IdPosition = 11;
+
+        public byte[] imageArray { set; get; }
 
         public bool interactive = false;
         private ProcessDialog progress = new ProcessDialog();
@@ -39,30 +41,27 @@ namespace ImageWithSecretLibrary
                 throw new ArgumentException("Parameter cannot be null", "DataReader");
             if (WriteReadData == null)
                 throw new ArgumentException("Parameter cannot be null", "WriteReadData");
-            _lockBitmap = new LockBitmap(ImageModifying);
-            _lockBitmap.LockBits();
+            //_lockbitmap = new lockbitmap(ImageModifying);
+            //_lockbitmap.lockbits();
 
             var dataToEncrypt = DataReader.ToBytes(data);
             WriteReadData.SetSettingsMode();
-            // write config ID of module name for Write/Read data in pixel
-            //_lockBitmap.SetPixel(WriteReadDataIdPosition, 0, 
-            //    WriteReadData.WriteData(_lockBitmap.GetPixel(WriteReadDataIdPosition, 0), WriteReadData.GetID(), null, null, null));
+
+            var test2 = WriteReadData.GetID();
+
             SetConfPixel(WriteReadDataIdPosition, WriteReadData.GetID());
             if (DataCompression != null)
             {
                 dataToEncrypt = DataCompression.Compression(dataToEncrypt);
-                // write config ID of module Compression
-                //_lockBitmap.SetPixel(DataCompressionIdPosition, 0, WriteReadData.WriteData(_lockBitmap.GetPixel(DataCompressionIdPosition, 0), DataCompression.GetID(), null, null, null));
+
                 SetConfPixel(DataCompressionIdPosition, DataCompression.GetID());
             }
             else
             {
-                //_lockBitmap.SetPixel(DataCompressionIdPosition, 0, WriteReadData.WriteData(_lockBitmap.GetPixel(DataCompressionIdPosition, 0), 0b00000000, null, null, null));
+
                 SetConfPixel(DataCompressionIdPosition, 0b00000000);
             }
 
-            //_lockBitmap.SetPixel(Encrypt1IdPosition, 0, WriteReadData.WriteData(_lockBitmap.GetPixel(Encrypt1IdPosition, 0), 0b00000000, null, null, null));
-            //_lockBitmap.SetPixel(Encrypt2IdPosition, 0, WriteReadData.WriteData(_lockBitmap.GetPixel(Encrypt2IdPosition, 0), 0b00000000, null, null, null));
             SetConfPixel(Encrypt1IdPosition, 0b00000000);
             SetConfPixel(Encrypt2IdPosition, 0b00000000);
             if (Encrypts != null && Encrypts.Count > 0)
@@ -72,8 +71,7 @@ namespace ImageWithSecretLibrary
                 {
                     dataToEncrypt = enc.Encrypt(dataToEncrypt);
                     SetConfPixel(Encrypt1IdPosition + i, enc.GetID());
-                    //_lockBitmap.SetPixel(Encrypt1IdPosition + i, 0, WriteReadData.WriteData(_lockBitmap.GetPixel(Encrypt1IdPosition + i, 0), enc.GetID(), null, null, null));
-
+                    
                     if (++i > 1)
                         break;
                 }
@@ -83,51 +81,66 @@ namespace ImageWithSecretLibrary
 
             var dataLengthInBits = dataToEncrypt.Length * 8;
             var toWriteLength = _byteOperations.SplitSettingsBytes(new BitArray(BitConverter.GetBytes(dataLengthInBits)));
-            int col = 0, rowIndex = 0;
+            int col = 3; // col = 0, rowIndex = 0;
             foreach (var row in toWriteLength)
             {
-                _lockBitmap.SetPixel(col, rowIndex, WriteReadData.WriteData(_lockBitmap.GetPixel(col, rowIndex), row, null, null, null));
-                ++col;
+                imageArray[col] = (byte)((imageArray[col] & 0b11110000) | row);
+
+                //_lockBitmap.SetPixel(col, rowIndex, WriteReadData.WriteData(_lockBitmap.GetPixel(col, rowIndex), row, null, null, null));
+                col += 4; // ++col;
             }
             #endregion
             
             WriteReadData.SetDataMode();
             var toWrite = _byteOperations.SplitDataBytes(dataToEncrypt);
-            int x = 0, y = 1;
+            int x = 0, y = 0;
             var lastIndex = toWrite.Count;
             foreach (var row in toWrite)
             {
-                if (x >= ImageModifying.Width)
-                {
-                    y++; x = 0;
-                }
-                var p = _lockBitmap.GetPixel(x, y);
-                var np = WriteReadData.WriteData(p, null, row[0], row[1], row[2]);
-                _lockBitmap.SetPixel(x, y, np);
+                
+
+                byte bR = imageArray[y + 0];
+                byte bG = imageArray[y + 1];
+                byte bB = imageArray[y + 2];
+
+                imageArray[y + 0] = (byte)((bR & 0b11110000) | row[0]);
+                imageArray[y + 1] = (byte)((bG & 0b11110000) | row[1]);
+                imageArray[y + 2] = (byte)((bB & 0b11110000) | row[2]);
+
+                //var p = _lockBitmap.GetPixel(x, y);
+                //var np = WriteReadData.WriteData(p, null, row[0], row[1], row[2]);
+                //_lockBitmap.SetPixel(x, y, np);
 
                 if (interactive && !skip)
                 {
-                    progress.SetData((int)Math.Ceiling((toWrite.IndexOf(row) / ((lastIndex - 1) * 1.0)) * 100), x, y, p.R, p.G, p.B, np.R, np.G, np.B);                   
+                    progress.SetData((int)Math.Ceiling((toWrite.IndexOf(row) / ((lastIndex - 1) * 1.0)) * 100), x, y, bR, bG, bB, imageArray[y * ImageModifying.Width * 4 + x * 4 + 0], imageArray[y * ImageModifying.Width * 4 + x * 4 + 1], imageArray[y * ImageModifying.Width * 4 + x * 4 + 2]);                  
                     if (progress.ShowDialog() == DialogResult.Cancel) skip = true;
                 }
 
-                ++x;
+                y += 4;
             }
+            var test1 = imageArray;
+            return ImageHelper.ArrToBmp(imageArray, ImageModifying.Width, ImageModifying.Height);
+
             // Unlock the bits.
-            _lockBitmap.UnlockBits();
-            return _lockBitmap.GetImage();
+            //_lockBitmap.UnlockBits();
+            //return _lockBitmap.GetImage();
         }
 
         private byte GetConfPixel(int x)
         {
-            return WriteReadData.ReadData(
-                ImageModifying.GetPixel(x, 0), ImageOrigimal == null ? new Color() : ImageOrigimal.GetPixel(x, 0))[0];
+            var test = imageArray[x * 4 + 3];
+            return (byte)(0b00001111 & imageArray[x * 4 + 3]);
+
+            //return WriteReadData.ReadData(ImageModifying.GetPixel(x, 0), ImageOrigimal == null ? new Color() : ImageOrigimal.GetPixel(x, 0))[0];
         }
         private void SetConfPixel(int x, byte val)
         {
-            var test1 = WriteReadData.WriteData(_lockBitmap.GetPixel(x, 0), val, null, null, null);
-            _lockBitmap.SetPixel(x, 0, WriteReadData.WriteData(_lockBitmap.GetPixel(x, 0), val, null, null, null));
-            var test2 = _lockBitmap.GetPixel(x, 0);
+            imageArray[x * 4 + 3] = (byte)((imageArray[x * 4 + 3] & 0b11110000) | val);
+
+            //var test1 = WriteReadData.WriteData(_lockBitmap.GetPixel(x, 0), val, null, null, null);
+            //_lockBitmap.SetPixel(x, 0, WriteReadData.WriteData(_lockBitmap.GetPixel(x, 0), val, null, null, null));
+            //var test2 = _lockBitmap.GetPixel(x, 0);
         }
 
         public static Bitmap ConvertTo32bpp(Image img)
@@ -170,7 +183,7 @@ namespace ImageWithSecretLibrary
             if (GetConfPixel(WriteReadDataIdPosition) != WriteReadData.GetID())
             {
                 return DataReader.ToObject(System.Text.Encoding.UTF8.GetBytes("There is no hidden data in image!"));
-                //throw new ArgumentException("Parameter is not correct", "WriteReadData");
+
             }
             var CompressionId = GetConfPixel(DataCompressionIdPosition);
             var EncryptId1 = GetConfPixel(Encrypt1IdPosition);
@@ -193,25 +206,29 @@ namespace ImageWithSecretLibrary
             countDataList = new byte[dataLengthBytes * 2];
 
             WriteReadData.SetDataMode();
-            int x = 0, y = 1;
+            int y = 0;
             for (int i = 0; i < countDataList.Length;)
             {
-                if (x >= ImageModifying.Width)
-                {
-                    y++; x = 0;
-                }
-                var pixelEnc = ImageModifying.GetPixel(x, y);
-                var pixelOrg = original == null ? new Color() : original.GetPixel(x, y);
-                var d = WriteReadData.ReadData(pixelEnc, pixelOrg);
 
+                byte bR = imageArray[y + 0];
+                byte bG = imageArray[y + 1];
+                byte bB = imageArray[y + 2];
+
+                var d0 = (byte)(0b00001111 & bR);
+                var d1 = (byte)(0b00001111 & bG);
+                var d2 = (byte)(0b00001111 & bB);
+
+                //var pixelEnc = ImageModifying.GetPixel(x, y);
+                //var pixelOrg = original == null ? new Color() : original.GetPixel(x, y);
+                //var d = WriteReadData.ReadData(pixelEnc, pixelOrg);
 
                 if (i < countDataList.Length)
-                    countDataList[i++] = d[0];
+                    countDataList[i++] = d0;
                 if (i < countDataList.Length)
-                    countDataList[i++] = d[1];
+                    countDataList[i++] = d1;
                 if (i < countDataList.Length)
-                    countDataList[i++] = d[2];
-                ++x;
+                    countDataList[i++] = d2;
+                y+=4;
             }
 
             var data = _byteOperations.JoinBytes(countDataList);

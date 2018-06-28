@@ -34,6 +34,7 @@ namespace ImageWithSecretForms
 
         public MainForm()
         {
+            //ImageHelper.ArrToBmp(ImageHelper.BmpToArr(dragImage), dragImage.Width, dragImage.Height).Save(System.IO.Path.GetFullPath(@"..\..\..\Images\") + "x_drag_n_drop_on_hover.png");
             InitializeComponent();
             InitializeCheckBoxesLists(this.listOfEncryptions, "EncryptionName", false);
             InitializeCheckBoxesLists(this.listOfCompressions, "CompressionName", true);
@@ -153,13 +154,15 @@ namespace ImageWithSecretForms
         private void ShowMessageAboutPixels()
         {
             if (checkBoxTips.Checked)
-                MessageBox.Show("In currently selected hider picture you can hide: " + (hiderSize = ((imageHider.Size.Width * imageHider.Size.Height) * 12) / 8 / 1024 / 1024.0) + "Megabytes", "Disclaimer", MessageBoxButtons.OK);
+                this.toolStripStatusLabel.Text = "In currently selected hider picture you can hide: " + (hiderSize = ((imageHider.Size.Width * imageHider.Size.Height) * 12) / 8 / 1024 / 1024.0) + "Megabytes";
+                //MessageBox.Show("In currently selected hider picture you can hide: " + (hiderSize = ((imageHider.Size.Width * imageHider.Size.Height) * 12) / 8 / 1024 / 1024.0) + "Megabytes", "Disclaimer", MessageBoxButtons.OK);
         }
 
         private void ShowMessageAboutSize(String path)
         {
             if (checkBoxTips.Checked)
-                MessageBox.Show("Currently selected picture to hide have size: " + (hideSize = new System.IO.FileInfo(path).Length / 1024 / 1024.0) + "Megabytes", "Disclaimer", MessageBoxButtons.OK);
+                this.toolStripStatusLabel.Text = "Currently selected picture to hide have size: " + (hideSize = new System.IO.FileInfo(path).Length / 1024 / 1024.0) + "Megabytes";
+                //MessageBox.Show("Currently selected picture to hide have size: " + (hideSize = new System.IO.FileInfo(path).Length / 1024 / 1024.0) + "Megabytes", "Disclaimer", MessageBoxButtons.OK);
         }
 
         private void DragElementsVisibility(Boolean hide, Boolean visible)
@@ -191,6 +194,7 @@ namespace ImageWithSecretForms
             buttonDecrypt.Enabled = false;
             buttonOpenDialogHider.Visible = true;
             labelDropHider.Visible = true;
+            toolStripStatusLabel.Text = "";
             if(hideModeSwitcher.Text != "Text")
             {
                 buttonOpenDialogHide.Visible = true;
@@ -297,7 +301,8 @@ namespace ImageWithSecretForms
         {
             if (hideSize > hiderSize)
             {
-                MessageBox.Show("Please, select another image!");
+                this.toolStripStatusLabel.Text = "Please, select another image!";
+                //MessageBox.Show("Please, select another image!");
                 return;
             }
             if (hideModeSwitcher.Text == "Text" && (dataToEncrypt = textToHide.Text.ToString()) == "")
@@ -309,6 +314,7 @@ namespace ImageWithSecretForms
             var lib = new ImageWithSecret<string>
             {
                 ImageModifying = ImageOriginalHider,
+                imageArray = ImageHelper.BmpToArr(ImageOriginalHider),
                 DataReader = new StringData(),
                 WriteReadData = new EmptyWriteReadPixelData()
             };
@@ -352,6 +358,7 @@ namespace ImageWithSecretForms
             var lib = new ImageWithSecret<string>
             {
                 ImageModifying = imageHidden,
+                imageArray = ImageHelper.BmpToArr(imageHidden),
                 DataReader = new StringData(),
                 WriteReadData = new EmptyWriteReadPixelData()
             };
@@ -377,6 +384,11 @@ namespace ImageWithSecretForms
         private void MainForm_Load(object sender, EventArgs e)
         {
             LimitCheckedListBoxMaxSelection(listOfEncryptions, 2);
+        }
+
+        private void checkBoxTips_CheckedChanged(object sender, EventArgs e)
+        {
+            this.toolStripStatusLabel.Visible = !this.toolStripStatusLabel.Visible;
         }
     }
 }
